@@ -22,12 +22,10 @@ REDIS_URI = ENV['REDIS_URI'] || 'REDIS://localhost:6379/'
 DEPLOY_TTL = ENV['DEPLOY_TTL'] || 300
 
 class Protected < Sinatra::Base
-  if HTTP_USER
-    use Rack::Auth::Basic, "Protected Area" do |username, password|
-      stored_user, stored_password = HTTP_USER.split(':')
-      password_hash = Digest::SHA256.new() << password
-      username == stored_user && password_hash.hexdigest == stored_password
-    end
+  use Rack::Auth::Basic, "Protected Area" do |username, password|
+    stored_user, stored_password = HTTP_USER.split(':')
+    password_hash = Digest::SHA256.new() << password
+    username == stored_user && password_hash.hexdigest == stored_password
   end
 
   redis = Redis.new(:url => REDIS_URI)
