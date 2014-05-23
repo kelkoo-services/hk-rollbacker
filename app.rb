@@ -1,5 +1,4 @@
 require 'sinatra/base'
-require 'sinatra/json'
 require 'newrelic_rpm'
 require 'rest_client'
 require 'json'
@@ -14,7 +13,6 @@ HEROKU_API_TOKEN = ENV['HEROKU_API_TOKEN']
 REDIS_URI = ENV['REDIS_URI'] || 'redis://localhost:6379/'
 
 class Protected < Sinatra::Base
-  helpers Sinatra::JSON
   if HTTP_USER
     use Rack::Auth::Basic, "Protected Area" do |username, password|
       stored_user, stored_password = HTTP_USER.split(':')
@@ -24,25 +22,26 @@ class Protected < Sinatra::Base
   end
   
   post '/:app/deploying/' do
-
     unless APPS.include?(params[:app])
       response.status = 404
-      return json({:status => '404', :reason => 'Not found'})
+      return {:status => '404', :reason => 'Not found'}.to_json
     end
-
+    payload = JSON.parse(request.body.read)
+    
     response.status = 200
-    json :status => 'ok'
+    {:status => 'ok'}.to_json
   end
 
   post '/:app/rollback/' do
   
     unless APPS.include?(params[:app])
       response.status = 404
-      return json({:status => '404', :reason => 'Not found'})
+      return {:status => '404', :reason => 'Not found'}.to_json
     end
-  
+    payload = JSON.parse(request.body.read)
+
     response.status = 200
-    json :status => 'ok'
+    {:status => 'ok'}.to_json
   end
 
   get '/' do
