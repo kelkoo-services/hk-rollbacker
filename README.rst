@@ -1,8 +1,9 @@
-===================================
-Heroku rollback with new relic hook
-===================================
+=======================================
+Heroku rollback with New Relic web hook
+=======================================
 
-If this project isn't useful for you, use other. Don't bother me.
+Heroku suggest to do rollback manually, but if want to be unsafe you can use my
+rollbacker app.
 
 
 Deployment
@@ -43,7 +44,7 @@ If you are in Linux or OSX you can get the hash with the follow line
 
 .. code-block::
 
-   echo -n "{email}{API TOKEN}" | base64
+  echo -n "{email}{API TOKEN}" | base64
 
 
 Protected access rollback
@@ -61,17 +62,17 @@ If you are in GNU based OS (linux):
 
 .. code-block::
 
-    echo -n 'yourpassword' | sha256sum
+  echo -n 'yourpassword' | sha256sum
 
 If you are in OSX:
 
 .. code-block::
 
-   echo -n 'youpassword' | shasum -a 256
+  echo -n 'youpassword' | shasum -a 256
 
 
 Then, we need to add a user:
 
 .. code-block::
 
-   export HTTP_USER='youruser:yourpasswordhash'
+  export HTTP_USER='youruser:yourpasswordhash'
