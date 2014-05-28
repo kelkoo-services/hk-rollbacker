@@ -50,8 +50,8 @@ If you are in Linux or OSX you can get the hash with the follow line
 Protected access rollback
 =========================
 
-This app require HTTP Auth Basic authentication, that is everyone who is going
-to access the app is going to be asked for valid user and password. This
+This app require HTTP Auth Basic authentication. This mean is everyone who is
+going to access the app is going to be asked for valid user and password. This
 include the New Relic Hook and the developer hook.
 
 This credential is setted by environment.
@@ -76,3 +76,34 @@ Then, we need to add a user:
 .. code-block::
 
   export HTTP_USER='youruser:yourpasswordhash'
+
+
+Available Hooks
+===============
+
+
+New Deployment
+--------------
+
+This action enables the monitoring during the TTL set time.
+
+The resource path is /APP_IN_APPS/newrelease/
+
+This accept json POST with this structure:
+
+.. code-block::javascript
+
+   {
+    email:'the-user-email'
+   }
+
+
+Rollback
+--------
+
+This action call to heroku to do a rollback if the **newrelease** hook was
+called before during the set TTL.
+
+The resource path is /APP_IN_APPS/rollback/
+
+This accept json POST with the New Relic json schema.
