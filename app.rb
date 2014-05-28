@@ -1,4 +1,5 @@
 require 'sinatra/base'
+require 'haml'
 require 'newrelic_rpm'
 require 'httparty'
 require 'json'
@@ -40,8 +41,6 @@ def heroku_rollback (app_name)
     releases = Heroku.get "/apps/#{app_name}/releases"
 
     previous_release = releases[-2]
-
-
     payload = {:release => previous_release["id"]}
 
     new_release = Heroku.post("/apps/#{app_name}/releases", :body => payload)
@@ -82,7 +81,7 @@ class Protected < Sinatra::Base
 
     redis.multi do
       redis.mapped_hmset(redis_key(app_name), data)
-      redis.expire(app_name, DEPLOY_TTL)
+      redis.expire(redis_key(app_name), DEPLOY_TTL)
     end
 
     response.status = 201
@@ -120,5 +119,7 @@ class Protected < Sinatra::Base
 
   get '/' do
     "This should be an application status list"
+    @apps_status = APPS.map {|name| {:name => name, :date => redis.hget(redis_key(name), 'date')}}
+    haml :index
   end
 end

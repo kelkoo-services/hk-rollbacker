@@ -29,11 +29,21 @@ This app read the required variables from environment
 
 .. code-block:: bash
 
-  APPS = "app1;app2;app3"  # heroku app names
-  HTTP_USER = "user:SHA256passwordhashed"
-  HEROKU_API_TOKEN = "asdfasdf-asdf-asdf"  # Token api from heroku with rollback available
-  REDIS_URI = "REDIS://:password@host:port"  # (localhost by default)
-  DEPLOY_TTL = 300  # seconds observing New Relic hook
+  APPS="app1;app2;app3"  # heroku app names
+  HTTP_USER="user:SHA256passwordhashed"
+  HEROKU_API_TOKEN="a base64 hash"
+  REDIS_URI="REDIS://:password@host:port"  # (localhost by default)
+  DEPLOY_TTL=300  # seconds observing New Relic hook
+
+
+The **HEROKU_API_TOKEN** var is the base64 hash of join email and the API TOKEN
+you can get from Heroku in your account settings.
+
+If you are in Linux or OSX you can get the hash with the follow line
+
+.. code-block::
+
+   echo -n "{email}{API TOKEN}" | base64
 
 
 Protected access rollback

@@ -1,6 +1,8 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    haml (4.0.5)
+      tilt
     httparty (0.13.1)
       json (~> 1.8)
       multi_xml (>= 0.5.2)
@@ -21,6 +23,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  haml
   httparty
   newrelic_rpm
   redis

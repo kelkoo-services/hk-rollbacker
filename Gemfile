@@ -1,5 +1,6 @@
 source 'https://rubygems.org'
 gem 'sinatra'
+gem 'haml'
 
 # other dependencies
 gem 'httparty'

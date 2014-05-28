@@ -1,0 +1,9 @@
+%html
+  %header
+    %title Last deployments.
+  %body
+    %div This show the last active deployments.
+    %ul
+      - @apps_status.each do |app|
+        %li #{app[:name]} - #{app[:date]}
+      
