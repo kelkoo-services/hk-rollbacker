@@ -1,14 +1,16 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    mime-types (2.3)
+    httparty (0.13.1)
+      json (~> 1.8)
+      multi_xml (>= 0.5.2)
+    json (1.8.1)
+    multi_xml (0.5.5)
     newrelic_rpm (3.8.1.221)
     rack (1.5.2)
     rack-protection (1.5.3)
       rack
     redis (3.0.7)
-    rest-client (1.6.7)
-      mime-types (>= 1.16)
     sinatra (1.4.5)
       rack (~> 1.4)
       rack-protection (~> 1.4)
@@ -19,7 +21,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  httparty
   newrelic_rpm
   redis
-  rest-client
   sinatra

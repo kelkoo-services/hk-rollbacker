@@ -2,7 +2,7 @@ source 'https://rubygems.org'
 gem 'sinatra'
 
 # other dependencies
-gem 'rest-client'
+gem 'httparty'
 gem 'redis'
 
 gem 'newrelic_rpm'

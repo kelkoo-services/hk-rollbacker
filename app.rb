@@ -1,6 +1,6 @@
 require 'sinatra/base'
 require 'newrelic_rpm'
-require 'rest_client'
+require 'httparty'
 require 'json'
 require 'digest'
 require 'redis'
@@ -9,10 +9,9 @@ require 'time'
 # Expected environment
 #  APPS = "app1;app2;app3"  # heroku app names
 #  HTTP_USER = "user:SHA256passwordhashed"
-#  HEROKU_API_TOKEN = "asdfasdf-asdf-asdf"  # Token api from heroku with rollback available
+#  HEROKU_API_TOKEN = "echo {email}{API TOKEN} | base64"  # Token api from heroku with rollback available
 #  REDIS_URI = "REDIS://:password@host:port"  # (localhost by default)
 #  DEPLOY_TTL = 300  # seconds
-
 
 
 APPS = ENV['APPS'].split(';')
@@ -20,6 +19,39 @@ HTTP_USER = ENV['HTTP_USER']
 HEROKU_API_TOKEN = ENV['HEROKU_API_TOKEN']
 REDIS_URI = ENV['REDIS_URI'] || 'REDIS://localhost:6379/'
 DEPLOY_TTL = ENV['DEPLOY_TTL'] || 300
+
+
+def redis_key(name)
+  name + "_hkrollbacker"
+end
+
+
+class Heroku
+  include HTTParty
+  base_uri 'https://api.heroku.com'
+  format :json
+  headers 'Accept' => 'application/vnd.heroku+json; version=3'
+  headers 'Authorization' => HEROKU_API_TOKEN
+end
+  
+
+def heroku_rollback (app_name)
+
+    releases = Heroku.get "/apps/#{app_name}/releases"
+
+    previous_release = releases[-2]
+
+
+    payload = {:release => previous_release["id"]}
+
+    new_release = Heroku.post("/apps/#{app_name}/releases", :body => payload)
+    
+    {
+      :previus_release => previous_release,
+      :new_release => new_release,
+    }
+end
+
 
 class Protected < Sinatra::Base
   use Rack::Auth::Basic, "Protected Area" do |username, password|
@@ -31,16 +63,11 @@ class Protected < Sinatra::Base
   redis = Redis.new(:url => REDIS_URI)
   redis.set("started", Time.now.getutc)
   
-  post '/:app/deploying/' do
+  post '/:app/newrelease/' do
     app_name = params[:app]
     unless APPS.include?(app_name)
       response.status = 404
       return {:status => '404', :reason => 'Not found'}.to_json
-    end
-
-    if redis.exists(app_name)
-      response.status = 409
-      return {:status => '409', :reason => 'Already registered'}.to_json
     end
 
     payload = JSON.parse request.body.read
@@ -54,23 +81,41 @@ class Protected < Sinatra::Base
     }
 
     redis.multi do
-      redis.mapped_hmset(app_name, data)
+      redis.mapped_hmset(redis_key(app_name), data)
       redis.expire(app_name, DEPLOY_TTL)
     end
 
-    response.status = 202
+    response.status = 201
     {:status => 'ok'}.to_json
   end
 
   post '/:app/rollback/' do
-    unless APPS.include?(params[:app])
+    app_name = params[:app]
+    unless APPS.include?(app_name)
       response.status = 404
       return {:status => '404', :reason => 'Not found'}.to_json
     end
+
+    unless redis.exists(redis_key(app_name))
+      response.status = 404
+      return {:status => '404', :reason => 'Last deploy is expired'}.to_json
+    end
+
     payload = JSON.parse(request.body.read)
 
-    response.status = 202
-    {:status => 'ok'}.to_json
+    result = heroku_rollback app_name
+
+    if result[:new_release].code == 201
+      response.status = 201
+      redis.del(redis_key(app_name))
+      {
+        :status => 'ok',
+        :new_release => result[:new_release]
+      }.to_json
+    else
+      response.status = result[:new_release].code
+      result[:new_release]
+    end
   end
 
   get '/' do
