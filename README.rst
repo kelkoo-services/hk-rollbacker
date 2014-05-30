@@ -117,7 +117,7 @@ The resource path is /APP_IN_APPS/newrelease/
 
 This accept json POST with this structure:
 
-.. code-block::javascript
+.. code-block:: javascript
 
    {
     email:'the-user-email'
