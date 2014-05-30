@@ -39,25 +39,41 @@ else
 end
 
 
-def send_email(app_name, email)
-    mail = MailFactory.new()
-    mail.to = email
-    if MAILER[:alwayscc]
-      mail.cc = MAILER[:alwayscc]
-    end
-    mail.from = MAILER[:from]
-    mail.subject = "#{MAILER[:subject_prefix]} [#{app_name}] ROLLBACK IN PROGRESS!!"
-    mail.text = "There is a rollback in process because the rollbacker app has received a web hook from New Relic for #{app_name}"
+def send_email(app_name, email, payload)
+  mail = MailFactory.new()
+  mail.to = email
+  if MAILER[:alwayscc]
+    mail.cc = MAILER[:alwayscc]
+  end
+  mail.from = MAILER[:from]
+  mail.subject = "#{MAILER[:subject_prefix]} [#{app_name}] ROLLBACK IN PROGRESS!!"
+  mail.text <<EOF
+There is a rollback in process because the rollbacker app has received 
+a web hook from New Relic for #{app_name}
 
-    if MAILER[:user]
-      mail_connection = [MAILER[:host], MAILER[:port], MAILER[:user], MAILER[:password]]
-    else
-      mail_connection = [MAILER[:host], MAILER[:port]]
-    end
+    #{payload.to_s}
+EOF
 
-    Net::SMTP.send('start', *mail_connection) do |smtp|
-      smtp.send_message(mail.to_s(), mail.from, mail.to)
-    end
+  if MAILER[:user]
+    mail_connection = [MAILER[:host], MAILER[:port], MAILER[:user], MAILER[:password]]
+  else
+    mail_connection = [MAILER[:host], MAILER[:port]]
+  end
+
+  Net::SMTP.send('start', *mail_connection) do |smtp|
+    smtp.send_message(mail.to_s(), mail.from, mail.to)
+  end
+end
+
+
+def newrelic_payload_validation(payload, app)
+  return false if paload.nil?
+  return false unless payload.at("account_name", "serverity") == [app, "downtime"]
+  return false unless (
+    payload.has_key?("message") &&
+    /^(New alert|Escalated severity).*down$/.match(payload["message"])
+  )
+  return true
 end
 
 
@@ -77,17 +93,17 @@ end
 
 def heroku_rollback (app_name)
 
-    releases = Heroku.get "/apps/#{app_name}/releases"
+  releases = Heroku.get "/apps/#{app_name}/releases"
 
-    previous_release = releases[-2]
-    payload = {:release => previous_release["id"]}
+  previous_release = releases[-2]
+  payload = {:release => previous_release["id"]}
 
-    new_release = Heroku.post("/apps/#{app_name}/releases", :body => payload)
-    
-    {
-      :previus_release => previous_release,
-      :new_release => new_release,
-    }
+  new_release = Heroku.post("/apps/#{app_name}/releases", :body => payload)
+  
+  {
+    :previus_release => previous_release,
+    :new_release => new_release,
+  }
 end
 
 
@@ -134,6 +150,8 @@ class Protected < Sinatra::Base
 
   post '/:app/rollback/' do
     app_name = params[:app]
+    payload = JSON.parse request.body.read
+
     unless APPS.include?(app_name)
       response.status = 404
       return {:status => '404', :reason => 'Not found'}.to_json
@@ -142,6 +160,14 @@ class Protected < Sinatra::Base
     unless redis.exists(redis_key(app_name))
       response.status = 404
       return {:status => '404', :reason => 'Last deploy is expired'}.to_json
+    end
+
+    unless newrelic_payload_validation(payload)
+      response.status = 400
+      return {
+        :status=> '400',
+        :reason => 'Invalid json content, required severity and account_name and message ending with down'
+      }.to_json
     end
 
     result = heroku_rollback app_name
@@ -154,7 +180,7 @@ class Protected < Sinatra::Base
       redis.del(redis_key(app_name))
 
       if EMAIL_ENABLED
-        send_email(app_name, email)
+        send_email(app_name, email, payload)
       end
         
       {
