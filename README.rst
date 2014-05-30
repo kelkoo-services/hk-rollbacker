@@ -55,6 +55,7 @@ environment variables:
   EMAIL_FROM     # default: rollbacker@generic-rollback.com
   EMAIL_SUBJECT_PREFIX # default to '[ROLLBACKER]'
   EMAIL_ALLWAYS_CC # default: false
+  EMAIL_DOMAIN # default to the part after @ in EMAIL_FROM
 
 
 The mailgun accepted variables are:
@@ -65,6 +66,7 @@ The mailgun accepted variables are:
   MAILGUN_SMTP_SERVER
   MAILGUN_SMTP_LOGIN
   MAILGUN_SMTP_PASSWORD
+  MAILGUN_DOMAIN
 
 
 The **HEROKU_API_TOKEN** var is the base64 hash of join email and the API TOKEN
