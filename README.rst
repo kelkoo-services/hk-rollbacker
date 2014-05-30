@@ -34,7 +34,33 @@ This app read the required variables from environment
   HTTP_USER="user:SHA256passwordhashed"
   HEROKU_API_TOKEN="a base64 hash"
   REDIS_URI="REDIS://:password@host:port"  # (localhost by default)
-  DEPLOY_TTL=300  # seconds observing New Relic hook
+  DEPLOY_TTL=300  # seconds waiting for New Relic hook
+  MANUAL_ROLLBACK=true # Set this if you only want email alert without rollback
+  EMAIL_ENABLED=true  # Set this if you want to receive an email with rollbacks
+
+
+The email setup allow to use mailgun settings in Heroku and the follow
+environment variables:
+
+.. code-block::
+
+  EMAIL_HOST     # default: '127.0.0.1'
+  EMAIL_PORT     # default:  25
+  EMAIL_USER     # default: false to connect without authetincation
+  EMAIL_PASSWORD
+  EMAIL_FROM     # default: rollbacker@generic-rollback.com
+  EMAIL_SUBJECT_PREFIX # default to '[ROLLBACKER]'
+  EMAIL_ALLWAYS_CC # default: false
+
+
+The mailgun accepted variables are:
+
+.. code-block::
+
+  MAILGUN_SMTP_SERVER
+  MAILGUN_SMTP_SERVER
+  MAILGUN_SMTP_LOGIN
+  MAILGUN_SMTP_PASSWORD
 
 
 The **HEROKU_API_TOKEN** var is the base64 hash of join email and the API TOKEN

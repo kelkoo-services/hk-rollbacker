@@ -7,3 +7,4 @@ gem 'httparty'
 gem 'redis'
 
 gem 'newrelic_rpm'
+gem 'mailfactory'
