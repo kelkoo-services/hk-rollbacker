@@ -27,13 +27,14 @@ if ENV['EMAIL_ENABLED'] == 'true'
   EMAIL_ENABLED=true
   MAILER = {
     :host => ENV['EMAIL_HOST'] || ENV['MAILGUN_SMTP_SERVER'] || '127.0.0.1',
-    :port => ENV['EMAIL_PORT'] || ENV['MAILGUN_SMTP_SERVER'] || 25,
+    :port => (ENV['EMAIL_PORT'] || ENV['MAILGUN_SMTP_SERVER'] || 25).to_i,
     :user => ENV['EMAIL_USER'] || ENV['MAILGUN_SMTP_LOGIN'] || false,
     :password => ENV['EMAIL_PASSWORD'] || ENV['MAILGUN_SMTP_PASSWORD'],
-    :from => ENV['EMAIL_FROM'] || 'rollbacker@generic-rollback.com',
+    :from => ENV['EMAIL_FROM'] || 'rollbacker@anyexample.com',
     :subject_prefix => ENV['EMAIL_SUBJECT_PREFIX'] || '[ROLLBACKER]',
     :alwayscc => ENV['EMAIL_ALLWAYS_CC'] || false
   }
+  MAILER[:domain] = ENV['EMAIL_DOMAIN'] || ENV['MAILGUN_DOMAIN'] || MAILER[:from].split('@')[-1]
 else
   EMAIL_ENABLED=false
 end
@@ -47,28 +48,31 @@ def send_email(app_name, email, payload)
   end
   mail.from = MAILER[:from]
   mail.subject = "#{MAILER[:subject_prefix]} [#{app_name}] ROLLBACK IN PROGRESS!!"
-  mail.text <<EOF
+  mail.text = <<EOM
 There is a rollback in process because the rollbacker app has received 
 a web hook from New Relic for #{app_name}
-
     #{payload.to_s}
-EOF
 
+EOM
+
+  mail_connection = [
+    MAILER[:host], 
+    MAILER[:port],
+    ''
+  ]
   if MAILER[:user]
-    mail_connection = [MAILER[:host], MAILER[:port], MAILER[:user], MAILER[:password]]
-  else
-    mail_connection = [MAILER[:host], MAILER[:port]]
+    mail_connection << MAILER[:user] << MAILER[:password] << :login
   end
 
-  Net::SMTP.send('start', *mail_connection) do |smtp|
+  Net::SMTP.start(*mail_connection) do |smtp|
     smtp.send_message(mail.to_s(), mail.from, mail.to)
   end
 end
 
 
 def newrelic_payload_validation(payload, app)
-  return false if paload.nil?
-  return false unless payload.at("account_name", "serverity") == [app, "downtime"]
+  return false if payload.nil?
+  return false unless payload.values_at("account_name", "severity") == [app, "downtime"]
   return false unless (
     payload.has_key?("message") &&
     /^(New alert|Escalated severity).*down$/.match(payload["message"])
@@ -162,7 +166,7 @@ class Protected < Sinatra::Base
       return {:status => '404', :reason => 'Last deploy is expired'}.to_json
     end
 
-    unless newrelic_payload_validation(payload)
+    unless newrelic_payload_validation(payload, app_name)
       response.status = 400
       return {
         :status=> '400',
