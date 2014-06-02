@@ -20,7 +20,7 @@ require 'mailfactory'
 APPS = ENV['APPS'].split(';')
 HTTP_USER = ENV['HTTP_USER']
 HEROKU_API_TOKEN = ENV['HEROKU_API_TOKEN']
-REDIS_URI = ENV['REDIS_URI'] || 'REDIS://localhost:6379/'
+REDIS_URI = ENV['REDIS_URI'] || ENV['REDISTOGO_URL'] || ENV['OPENREDIS_URL'] || 'redis://localhost:6379/'
 DEPLOY_TTL = ENV['DEPLOY_TTL'] || 300
 
 if ENV['EMAIL_ENABLED'] == 'true'
