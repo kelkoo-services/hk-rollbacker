@@ -33,11 +33,17 @@ def send_email(email, subject, body)
     MAILER[:port],
     MAILER[:domain],
   ]
+
+  emails = [
+    MAILER[:alwayscc],
+    email
+  ]
+
   if MAILER[:user]
     mail_connection << MAILER[:user] << MAILER[:password] << :login
   end
     Net::SMTP.start(*mail_connection) do |smtp|
-    smtp.send_message(mail.to_s, MAILER[:from], email)
+    smtp.send_message(mail.to_s, MAILER[:from], *emails)
   end
 end
 
