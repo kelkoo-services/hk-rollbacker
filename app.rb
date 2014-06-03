@@ -34,39 +34,58 @@ if ENV['EMAIL_ENABLED'] == 'true'
     :subject_prefix => ENV['EMAIL_SUBJECT_PREFIX'] || '[ROLLBACKER]',
     :alwayscc => ENV['EMAIL_ALLWAYS_CC'] || false
   }
-  MAILER[:domain] = ENV['EMAIL_DOMAIN'] || ENV['MAILGUN_DOMAIN'] || MAILER[:from].split('@')[-1]
+  MAILER[:domain] = ENV['EMAIL_DOMAIN'] || MAILER[:from].split('@')[-1]
 else
   EMAIL_ENABLED=false
 end
 
 
-def send_email(app_name, email, payload)
+def send_email(email, subject, body)
   mail = MailFactory.new()
   mail.to = email
   if MAILER[:alwayscc]
     mail.cc = MAILER[:alwayscc]
   end
   mail.from = MAILER[:from]
-  mail.subject = "#{MAILER[:subject_prefix]} [#{app_name}] ROLLBACK IN PROGRESS!!"
-  mail.text = <<EOM
+  mail.subject = subject
+  mail.text = body
+
+  mail_connection = [
+    MAILER[:host], 
+    MAILER[:port],
+    MAILER[:domain],
+  ]
+  if MAILER[:user]
+    mail_connection << MAILER[:user] << MAILER[:password] << :login
+  end
+    Net::SMTP.start(*mail_connection) do |smtp|
+    smtp.send_message(mail.to_s, MAILER[:from], email)
+  end
+end
+
+
+def send_email_rollback(app_name, email, payload)
+  body = <<EOM
 There is a rollback in process because the rollbacker app has received 
 a web hook from New Relic for #{app_name}
     #{payload.to_s}
 
 EOM
+  subject = "#{MAILER[:subject_prefix]} [#{app_name}] ROLLBACK IN PROGRESS!!"
+  send_email(email, subject, body)
+end
 
-  mail_connection = [
-    MAILER[:host], 
-    MAILER[:port],
-    ''
-  ]
-  if MAILER[:user]
-    mail_connection << MAILER[:user] << MAILER[:password] << :login
-  end
 
-  Net::SMTP.start(*mail_connection) do |smtp|
-    smtp.send_message(mail.to_s(), mail.from, mail.to)
-  end
+def send_email_rollback_failed(app_name, email, payload)
+  body = <<EOM
+We have received a request to do a rollback in the app #{app_name} but the
+rollback request process has failed in Heroku system.
+
+    #{payload.to_s}
+
+EOM
+  subject = "#{MAILER[:subject_prefix]} [#{app_name}] ROLLBACK REQUESTED FAILED!!"
+  send_email(email, subject, body)
 end
 
 
@@ -174,26 +193,32 @@ class Protected < Sinatra::Base
       }.to_json
     end
 
-    result = heroku_rollback app_name
-
-    if result[:new_release].code == 201
-      response.status = 201
-
-      email = redis.hget(redis_key(app_name), 'email')
-
-      redis.del(redis_key(app_name))
-
-      if EMAIL_ENABLED
-        send_email(app_name, email, payload)
-      end
-        
-      {
-        :status => 'ok',
-        :new_release => result[:new_release]
-      }.to_json
+    begin
+      result = heroku_rollback app_name
+    rescue
+      send_email_rollback_failed(app_name, email, payload) if EMAIL_ENABLED
+      response.status = 500
+      return {:status => '500', :reason => 'Rollback rejected by Heroku'}
     else
-      response.status = result[:new_release].code
-      result[:new_release]
+      if result[:new_release].code == 201
+        response.status = 201
+
+        email = redis.hget(redis_key(app_name), 'email')
+
+        redis.del(redis_key(app_name))
+
+        if EMAIL_ENABLED
+          send_email_rollback(app_name, email, payload)
+        end
+          
+        {
+          :status => 'ok',
+          :new_release => result[:new_release]
+        }.to_json
+      else
+        response.status = result[:new_release].code
+        result[:new_release]
+      end
     end
   end
 
