@@ -5,7 +5,7 @@ require 'mailfactory'
 if ENV['EMAIL_ENABLED'] == 'true'
   MAILER = {
     :host => ENV['EMAIL_HOST'] || ENV['MAILGUN_SMTP_SERVER'] || '127.0.0.1',
-    :port => (ENV['EMAIL_PORT'] || ENV['MAILGUN_SMTP_SERVER'] || 25).to_i,
+    :port => (ENV['EMAIL_PORT'] || ENV['MAILGUN_SMTP_PORT'] || 25).to_i,
     :user => ENV['EMAIL_USER'] || ENV['MAILGUN_SMTP_LOGIN'] || false,
     :password => ENV['EMAIL_PASSWORD'] || ENV['MAILGUN_SMTP_PASSWORD'],
     :from => ENV['EMAIL_FROM'] || 'rollbacker@anyexample.com',
