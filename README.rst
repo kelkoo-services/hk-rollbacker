@@ -36,6 +36,7 @@ This app read the required variables from environment
 
   APPS="app1;app2;app3"  # heroku app names
   HTTP_USER="user:SHA256passwordhashed"
+  API_KEY="SHA256api-key"
   HEROKU_API_TOKEN="a base64 hash"
   REDIS_URI="REDIS://:password@host:port"  # (localhost by default)
   DEPLOY_TTL=300  # seconds waiting for New Relic hook
@@ -82,13 +83,17 @@ If you are in Linux or OSX you can get the hash with the follow line
 Protected access rollback
 =========================
 
-This app require HTTP Auth Basic authentication. This mean is everyone who is
-going to access the app is going to be asked for valid user and password. This
-include the New Relic Hook and the developer hook.
+This app require HTTP Auth Basic authentication and an API Key. This mean is
+everyone who is going to access the app is going to be asked for valid user and
+password. The API Key is needed because New Relic Web Hook doesn't allow auth
+basic.
 
 This credential is setted by environment.
 
 The password is a hexdigest of sha256. You can get it with:
+
+User / Password
+---------------
 
 If you are in GNU based OS (linux):
 
@@ -103,11 +108,27 @@ If you are in OSX:
   echo -n 'youpassword' | shasum -a 256
 
 
-Then, we need to add a user:
+Then, we need to add an user:
 
 .. code-block::
 
   export HTTP_USER='youruser:yourpasswordhash'
+
+
+API Key
+-------
+
+
+.. code-block::
+
+  echo -n 'your-api-key' | shasum -a 256
+
+
+Then, we need to add an user:
+
+.. code-block::
+
+  export API_KEY='The hash result'
 
 
 Available Hooks
@@ -137,5 +158,10 @@ This action call to heroku to do a rollback if the **newrelease** hook was
 called before during the set TTL.
 
 The resource path is /APP_IN_APPS/rollback/
+
+You should include the api key in the new relic webhook, so it should look
+like:
+
+http://somename.herokuapp.com/appname/rollback/?key=yourapikey
 
 This accept json POST with the New Relic json schema.

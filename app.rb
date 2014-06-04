@@ -11,6 +11,7 @@ require './emails'
 # Expected environment
 #  APPS = "app1;app2;app3"  # heroku app names
 #  HTTP_USER = "user:SHA256passwordhashed"
+#  API_KEY = "SHA256passwordhashed"
 #  HEROKU_API_TOKEN = "echo {email}{API TOKEN} | base64"  # Token api from heroku with rollback available
 #  REDIS_URI = "REDIS://:password@host:port"  # (localhost by default)
 #  DEPLOY_TTL = 300  # seconds
@@ -18,6 +19,7 @@ require './emails'
 
 APPS = ENV['APPS'].split(';')
 HTTP_USER = ENV['HTTP_USER']
+API_KEY = ENV['API_KEY']
 HEROKU_API_TOKEN = ENV['HEROKU_API_TOKEN']
 REDIS_URI = ENV['REDIS_URI'] || ENV['REDISTOGO_URL'] || ENV['OPENREDIS_URL'] || 'redis://localhost:6379/'
 DEPLOY_TTL = ENV['DEPLOY_TTL'] || 300
@@ -66,11 +68,31 @@ end
 
 
 class Protected < Sinatra::Base
-  use Rack::Auth::Basic, "Protected Area" do |username, password|
+  def auth_basic?
+    @auth ||= Rack::Auth::Basic::Request.new(request.env)
     stored_user, stored_password = HTTP_USER.split(':')
-    password_hash = Digest::SHA256.new() << password
-    username == stored_user && password_hash.hexdigest == stored_password
+    unless @auth.provided? && @auth.basic? && @auth.credentials 
+      return false
+    end
+
+    password_hash = Digest::SHA256.new() << @auth.credentials[1] 
+    (@auth.credentials[0] == stored_user && password_hash = stored_password)
   end
+
+  def auth_apikey?
+    return false unless params[:key]
+    password_hash = Digest::SHA256.new() << params[:key]
+    return password_hash == ENV['API_KEY']
+  end
+
+  def authorized?
+    auth_basic? || auth_apikey?  
+  end
+
+  before do
+    error 401 unless authorized?
+  end
+
 
   redis = Redis.new(:url => REDIS_URI)
   redis.set("started", Time.now.getutc)
