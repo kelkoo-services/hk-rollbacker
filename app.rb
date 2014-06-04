@@ -20,6 +20,7 @@ require './emails'
 APPS = ENV['APPS'].split(';')
 HTTP_USER = ENV['HTTP_USER']
 API_KEY = ENV['API_KEY']
+NEWRELIC_API_ID= ENV['NEWRELIC_API_ID']
 HEROKU_API_TOKEN = ENV['HEROKU_API_TOKEN']
 REDIS_URI = ENV['REDIS_URI'] || ENV['REDISTOGO_URL'] || ENV['OPENREDIS_URL'] || 'redis://localhost:6379/'
 DEPLOY_TTL = ENV['DEPLOY_TTL'] || 300
@@ -82,12 +83,21 @@ class Protected < Sinatra::Base
   def auth_apikey?
     return false unless params[:key]
     password_hash = Digest::SHA256.new() << params[:key]
-    return password_hash == ENV['API_KEY']
+    password_hash == API_KEY
+  end
+
+  def is_newrelic?
+    puts request.env["HTTP_X_NEWRELIC_ID"]
+    puts request.env["HTTP_X_NEWRELIC_TRANSACTION"]
+    (request.env.has_key?("HTTP_X_NEWRELIC_ID") && 
+     request.env.has_key?("HTTP_X_NEWRELIC_TRANSACTION") &&
+     request.env["HTTP_X_NEWRELIC_ID"] == NEWRELIC_API_ID)
   end
 
   def authorized?
-    auth_basic? || auth_apikey?  
+    auth_basic? || auth_apikey? || is_newrelic?
   end
+
 
   before do
     error 401 unless authorized?
@@ -98,6 +108,7 @@ class Protected < Sinatra::Base
   redis.set("started", Time.now.getutc)
   
   post '/:app/newrelease/' do
+    puts request.env
     app_name = params[:app]
     unless APPS.include?(app_name)
       response.status = 404
