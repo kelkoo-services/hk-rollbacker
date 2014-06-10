@@ -143,7 +143,7 @@ class Protected < Sinatra::Base
     app_name = params[:app]
     puts params
     if params.has_key?("alert")
-      payload = params["alert"]
+      payload = JSON.parse params["alert"]
     else
       payload = JSON.parse request.body.read
     end
