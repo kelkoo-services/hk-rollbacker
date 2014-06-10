@@ -141,7 +141,12 @@ class Protected < Sinatra::Base
 
   post '/:app/rollback/' do
     app_name = params[:app]
-    payload = JSON.parse request.body.read
+    if params.has_key?(:alert)
+      payload = params[:alert]
+    else
+      payload = JSON.parse request.body.read
+    end
+    puts payload
 
     unless APPS.include?(app_name)
       response.status = 404
