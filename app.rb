@@ -155,8 +155,8 @@ class Protected < Sinatra::Base
     end
 
     unless redis.exists(redis_key(app_name))
-      response.status = 404
-      return {:status => '404', :reason => 'Last deploy is expired'}.to_json
+      response.status = 202
+      return {:status => '202', :reason => 'Last deploy is expired'}.to_json
     end
 
     unless newrelic_payload_validation(payload, app_name)
