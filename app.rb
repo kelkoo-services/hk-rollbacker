@@ -141,8 +141,9 @@ class Protected < Sinatra::Base
 
   post '/:app/rollback/' do
     app_name = params[:app]
-    if params.has_key?(:alert)
-      payload = params[:alert]
+    puts params
+    if params.has_key?("alert")
+      payload = params["alert"]
     else
       payload = JSON.parse request.body.read
     end
