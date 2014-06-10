@@ -99,6 +99,7 @@ class Protected < Sinatra::Base
   end
 
 
+  puts request.env
   before do
     error 401 unless authorized?
   end
