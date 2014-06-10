@@ -141,7 +141,7 @@ class Protected < Sinatra::Base
 
   post '/:app/rollback/' do
     app_name = params[:app]
-    if request.media_type == 'application/x-www-form-urlencoded'
+    if request.env['CONTENT_TYPE'] == 'application/x-www-form-urlencoded'
         if params.has_key?("alert")
           payload = JSON.parse params["alert"]
         else
