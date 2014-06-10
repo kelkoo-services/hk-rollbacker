@@ -108,7 +108,6 @@ class Protected < Sinatra::Base
   redis.set("started", Time.now.getutc)
   
   post '/:app/newrelease/' do
-    puts request.env
     app_name = params[:app]
     unless APPS.include?(app_name)
       response.status = 404
@@ -141,7 +140,6 @@ class Protected < Sinatra::Base
 
   post '/:app/rollback/' do
     app_name = params[:app]
-    puts params
     if request.media_type == 'application/x-www-form-urlencoded'
         if params.has_key?("alert")
           payload = JSON.parse params["alert"]
@@ -155,7 +153,6 @@ class Protected < Sinatra::Base
     else
       payload = JSON.parse request.body.read
     end
-    puts payload
 
     unless APPS.include?(app_name)
       response.status = 404
