@@ -29,10 +29,10 @@ EMAIL_ENABLED = ENV['EMAIL_ENABLED'] == 'true'
 
 def newrelic_payload_validation(payload, app)
   return false if payload.nil?
-  return false unless payload.values_at("account_name", "severity") == [app, "downtime"]
+  return false unless payload.values_at("application_name", "severity") == [app, "downtime"]
   return false unless (
-    payload.has_key?("message") &&
-    /^(New alert|Escalated severity).*down$/.match(payload["message"])
+    payload.has_key?("short_description") &&
+    /^(New alert|Escalated severity).*$/.match(payload["short_description"])
   )
   return true
 end
