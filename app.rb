@@ -142,8 +142,16 @@ class Protected < Sinatra::Base
   post '/:app/rollback/' do
     app_name = params[:app]
     puts params
-    if params.has_key?("alert")
-      payload = JSON.parse params["alert"]
+    if request.media_type == 'application/x-www-form-urlencoded'
+        if params.has_key?("alert")
+          payload = JSON.parse params["alert"]
+        else
+          response.status = 400
+          return {
+            :status=> '400',
+            :reason => 'Invalid request'
+          }.to_json
+        end
     else
       payload = JSON.parse request.body.read
     end
