@@ -146,10 +146,10 @@ class Protected < Sinatra::Base
         if params.has_key?("alert")
           payload = JSON.parse params["alert"]
         else
-          response.status = 400
+          response.status = 204
           return {
-            :status=> '400',
-            :reason => 'Invalid request'
+            :status=> '204',
+            :reason => 'Only the alert message is implemented'
           }.to_json
         end
     else
