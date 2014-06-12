@@ -87,7 +87,6 @@ class Protected < Sinatra::Base
   end
 
   def is_newrelic?
-    puts request.env
     puts request.env["HTTP_X_NEWRELIC_ID"]
     puts request.env["HTTP_X_NEWRELIC_TRANSACTION"]
     (request.env.has_key?("HTTP_X_NEWRELIC_ID") && 
