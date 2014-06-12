@@ -10,7 +10,7 @@ if ENV['EMAIL_ENABLED'] == 'true'
     :password => ENV['EMAIL_PASSWORD'] || ENV['MAILGUN_SMTP_PASSWORD'],
     :from => ENV['EMAIL_FROM'] || 'rollbacker@anyexample.com',
     :subject_prefix => ENV['EMAIL_SUBJECT_PREFIX'] || '[ROLLBACKER]',
-    :alwayscc => ENV['EMAIL_ALLWAYS_CC'] || false
+    :alwayscc => ENV['EMAIL_ALWAYS_CC'] || false
   }
   MAILER[:domain] = ENV['EMAIL_DOMAIN'] || MAILER[:from].split('@')[-1]
 else
