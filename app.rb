@@ -100,7 +100,10 @@ class Protected < Sinatra::Base
 
 
   before do
-    error 401 unless authorized?
+    if not authorized?
+      headers['WWW-Authenticate'] = 'Basic realm="Restricted Area"'
+      halt 401, "Not authorized\n"
+    end
   end
 
 
