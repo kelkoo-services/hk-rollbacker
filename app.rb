@@ -173,6 +173,9 @@ class Protected < Sinatra::Base
       }.to_json
     end
 
+    email = redis.hget(redis_key(app_name), 'email')
+    redis.del(redis_key(app_name))
+
     begin
       result = heroku_rollback app_name
     rescue
@@ -182,10 +185,6 @@ class Protected < Sinatra::Base
     else
       if result[:new_release].code == 201
         response.status = 201
-
-        email = redis.hget(redis_key(app_name), 'email')
-
-        redis.del(redis_key(app_name))
 
         if EMAIL_ENABLED
           send_email_rollback(app_name, email, payload)
