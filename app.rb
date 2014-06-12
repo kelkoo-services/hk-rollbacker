@@ -25,6 +25,7 @@ HEROKU_API_TOKEN = ENV['HEROKU_API_TOKEN']
 REDIS_URI = ENV['REDIS_URI'] || ENV['REDISTOGO_URL'] || ENV['OPENREDIS_URL'] || 'redis://localhost:6379/'
 DEPLOY_TTL = ENV['DEPLOY_TTL'] || 300
 EMAIL_ENABLED = ENV['EMAIL_ENABLED'] == 'true'
+ROLLBACK_ENABLED = ENV['ROLLBACK_ENABLED'] == 'true'
 
 
 def newrelic_payload_validation(payload, app)
@@ -178,8 +179,14 @@ class Protected < Sinatra::Base
     email = redis.hget(redis_key(app_name), 'email')
     redis.del(redis_key(app_name))
 
+    unless ROLLBACK_ENABLED
+      send_email_rollback_request(app_name, email, payload)
+      response.status = 201
+      return {:status => '201', :reason => 'Rollback disabled, only this email is sent'}.to_json
+    end
+
     begin
-      result = heroku_rollback app_name
+        result = heroku_rollback app_name if ROLLBACK_ENABLED
     rescue
       send_email_rollback_failed(app_name, email, payload) if EMAIL_ENABLED
       response.status = 500

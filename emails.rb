@@ -71,3 +71,16 @@ EOM
   subject = "#{MAILER[:subject_prefix]} [#{app_name}] ROLLBACK REQUESTED FAILED!!"
   send_email(email, subject, body)
 end
+
+
+def send_email_rollback_request(app_name, email, payload)
+  body = <<EOM
+We have received a request to do a rollback in the app #{app_name} but the
+rollback request process is disabled.
+
+    #{payload.to_s}
+
+EOM
+  subject = "#{MAILER[:subject_prefix]} [#{app_name}] ROLLBACK REQUESTED, but rollback is disabled!!"
+  send_email(email, subject, body)
+end
