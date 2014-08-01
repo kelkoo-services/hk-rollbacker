@@ -1,9 +1,7 @@
-%html
-  %header
-    %title Last deployments.
-  %body
-    %div Latest active deployments.
-    %ul
-      - @apps_status.each do |app|
-        - if app[:date]
-          %li #{app[:name]} - #{app[:date]}
+%div Latest active deployments.
+%ul
+  - @apps_status.each do |app|
+    - if app[:date]
+      %li #{app[:name]} - #{app[:date]}
+
+
