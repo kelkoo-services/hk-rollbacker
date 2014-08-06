@@ -7,6 +7,11 @@ require 'digest'
 require 'redis'
 require 'time'
 require './emails'
+require './app/workers/monitoring'
+require './lib/utils'
+require './config/env'
+require 'active_support/time'
+
 
 # Expected environment
 #  APPS = "app1;app2;app3"  # heroku app names
@@ -17,31 +22,29 @@ require './emails'
 #  DEPLOY_TTL = 300  # seconds
 
 
-APPS = ENV['APPS'].split(';')
-HTTP_USER = ENV['HTTP_USER']
-API_KEY = ENV['API_KEY']
-NEWRELIC_API_ID= ENV['NEWRELIC_API_ID']
-HEROKU_API_TOKEN = ENV['HEROKU_API_TOKEN']
-REDIS_URI = ENV['REDIS_URI'] || ENV['REDISTOGO_URL'] || ENV['OPENREDIS_URL'] || 'redis://localhost:6379/'
-DEPLOY_TTL = ENV['DEPLOY_TTL'] || 300
-EMAIL_ENABLED = ENV['EMAIL_ENABLED'] == 'true'
-ROLLBACK_ENABLED = ENV['ROLLBACK_ENABLED'] == 'true'
+
+$redis = Redis.new(:url => REDIS_URI)
 
 
-def newrelic_payload_validation(payload, app)
-  return false if payload.nil?
-  return false unless payload.values_at("application_name", "severity") == [app, "downtime"]
-  return false unless (
-    payload.has_key?("short_description") &&
-    /^(New alert|Escalated severity).*$/.match(payload["short_description"])
-  )
-  return true
+
+def init_tests(app, email)
+    now = Time.now.getutc
+    data = {
+      :app => app,
+      :email => email,
+      :timestamp => now.getutc.to_i,
+      :date => now,
+      :ok => 0,
+      :errors => 0,
+      :last_request => nil,
+    }
+
+    $redis.multi do
+      $redis.mapped_hmset(redis_key(app), data)
+    end
+    MonitoringJob.perform_in(5.seconds, app, email)
 end
 
-
-def redis_key(name)
-  name + "_hkrollbacker"
-end
 
 
 class Heroku
@@ -101,6 +104,7 @@ class Protected < Sinatra::Base
 
 
   before do
+    $redis.set("started", Time.now.getutc)
     if not authorized?
       headers['WWW-Authenticate'] = 'Basic realm="Restricted Area"'
       halt 401, "Not authorized\n"
@@ -108,8 +112,6 @@ class Protected < Sinatra::Base
   end
 
 
-  redis = Redis.new(:url => REDIS_URI)
-  redis.set("started", Time.now.getutc)
   
   post '/:app/newrelease/' do
     app_name = params[:app]
@@ -133,9 +135,9 @@ class Protected < Sinatra::Base
       :date => now,
     }
 
-    redis.multi do
-      redis.mapped_hmset(redis_key(app_name), data)
-      redis.expire(redis_key(app_name), DEPLOY_TTL)
+    $redis.multi do
+      $redis.mapped_hmset(redis_key(app_name), data)
+      $redis.expire(redis_key(app_name), DEPLOY_TTL)
     end
 
     response.status = 201
@@ -163,7 +165,7 @@ class Protected < Sinatra::Base
       return {:status => '404', :reason => 'Not found'}.to_json
     end
 
-    unless redis.exists(redis_key(app_name))
+    unless $redis.exists(redis_key(app_name))
       response.status = 202
       return {:status => '202', :reason => 'Last deploy is expired'}.to_json
     end
@@ -176,8 +178,8 @@ class Protected < Sinatra::Base
       }.to_json
     end
 
-    email = redis.hget(redis_key(app_name), 'email')
-    redis.del(redis_key(app_name))
+    email = $redis.hget(redis_key(app_name), 'email')
+    $redis.del(redis_key(app_name))
 
     unless ROLLBACK_ENABLED
       send_email_rollback_request(app_name, email, payload)
@@ -212,7 +214,30 @@ class Protected < Sinatra::Base
   end
 
   get '/' do
-    @apps_status = APPS.map {|name| {:name => name, :date => redis.hget(redis_key(name), 'date')}}
+    @apps_status = APPS.map {|name| {:name => name, :date => $redis.hget(redis_key(name), 'date')}}
     haml :index
+  end
+
+
+  post '/heroku-post' do
+    app_name = params.get('app')
+    email = params.get('user')
+    url = params.get('url')
+
+    logger.log(url)
+
+    init_tests(app_name, email)
+
+    response.status = 201
+    {:status => 'ok'}.to_json
+  end
+
+  get '/manualtest' do
+    app_name = "patata"
+    email = "someone@example.com"
+
+    init_tests(app_name, email)
+
+    haml :ok
   end
 end
