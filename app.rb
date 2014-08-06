@@ -6,7 +6,6 @@ require 'json'
 require 'digest'
 require 'redis'
 require 'time'
-require './emails'
 require './app/workers/monitoring'
 require './lib/utils'
 require './config/env'
@@ -26,49 +25,22 @@ require 'active_support/time'
 $redis = Redis.new(:url => REDIS_URI)
 
 
-
 def init_tests(app, email)
     now = Time.now.getutc
     data = {
       :app => app,
       :email => email,
       :timestamp => now.getutc.to_i,
+      :monitoring => true,
       :date => now,
       :ok => 0,
       :errors => 0,
       :last_request => nil,
     }
 
-    $redis.multi do
-      $redis.mapped_hmset(redis_key(app), data)
-    end
-    MonitoringJob.perform_in(5.seconds, app, email)
-end
+    $redis.mapped_hmset(redis_key(app), data)
 
-
-
-class Heroku
-  include HTTParty
-  base_uri 'https://api.heroku.com'
-  format :json
-  headers 'Accept' => 'application/vnd.heroku+json; version=3'
-  headers 'Authorization' => HEROKU_API_TOKEN
-end
-  
-
-def heroku_rollback (app_name)
-
-  releases = Heroku.get "/apps/#{app_name}/releases"
-
-  previous_release = releases[-2]
-  payload = {:release => previous_release["id"]}
-
-  new_release = Heroku.post("/apps/#{app_name}/releases", :body => payload)
-  
-  {
-    :previus_release => previous_release,
-    :new_release => new_release,
-  }
+    MonitoringJob.perform_in(APPS_WAKEUP.to_i.seconds, app, email)
 end
 
 
@@ -90,16 +62,8 @@ class Protected < Sinatra::Base
     password_hash == API_KEY
   end
 
-  def is_newrelic?
-    puts request.env["HTTP_X_NEWRELIC_ID"]
-    puts request.env["HTTP_X_NEWRELIC_TRANSACTION"]
-    (request.env.has_key?("HTTP_X_NEWRELIC_ID") && 
-     request.env.has_key?("HTTP_X_NEWRELIC_TRANSACTION") &&
-     request.env["HTTP_X_NEWRELIC_ID"] == NEWRELIC_API_ID)
-  end
-
   def authorized?
-    auth_basic? || auth_apikey? || is_newrelic?
+    auth_basic? || auth_apikey? 
   end
 
 
@@ -112,7 +76,6 @@ class Protected < Sinatra::Base
   end
 
 
-  
   post '/:app/newrelease/' do
     app_name = params[:app]
     unless APPS.include?(app_name)
@@ -141,90 +104,37 @@ class Protected < Sinatra::Base
     end
 
     response.status = 201
-    {:status => 'ok'}.to_json
-  end
-
-  post '/:app/rollback/' do
-    app_name = params[:app]
-    if request.env['CONTENT_TYPE'] == 'application/x-www-form-urlencoded'
-        if params.has_key?("alert")
-          payload = JSON.parse params["alert"]
-        else
-          response.status = 204
-          return {
-            :status=> '204',
-            :reason => 'Only the alert message is implemented'
-          }.to_json
-        end
-    else
-      payload = JSON.parse request.body.read
-    end
-
-    unless APPS.include?(app_name)
-      response.status = 404
-      return {:status => '404', :reason => 'Not found'}.to_json
-    end
-
-    unless $redis.exists(redis_key(app_name))
-      response.status = 202
-      return {:status => '202', :reason => 'Last deploy is expired'}.to_json
-    end
-
-    unless newrelic_payload_validation(payload, app_name)
-      response.status = 400
-      return {
-        :status=> '400',
-        :reason => 'Invalid json content, required severity and account_name and message ending with down'
-      }.to_json
-    end
-
-    email = $redis.hget(redis_key(app_name), 'email')
-    $redis.del(redis_key(app_name))
-
-    unless ROLLBACK_ENABLED
-      send_email_rollback_request(app_name, email, payload)
-      response.status = 201
-      return {:status => '201', :reason => 'Rollback disabled, only this email is sent'}.to_json
-    end
-
-    begin
-        result = heroku_rollback app_name if ROLLBACK_ENABLED
-    rescue
-      send_email_rollback_failed(app_name, email, payload) if EMAIL_ENABLED
-      response.status = 500
-      return {:status => '500', :reason => 'Rollback rejected by Heroku'}
-    else
-      if result[:new_release].code == 201
-        response.status = 201
-
-        if EMAIL_ENABLED
-          send_email_rollback(app_name, email, payload)
-        end
-          
-        {
-          :status => 'ok',
-          :new_release => result[:new_release]
-        }.to_json
-      else
-        send_email_rollback_failed(app_name, email, result) if EMAIL_ENABLED
-        response.status = result[:new_release].code
-        result[:new_release]
-      end
-    end
+    return {:status => '201', :status => "OK"}.to_json
   end
 
   get '/' do
-    @apps_status = APPS.map {|name| {:name => name, :date => $redis.hget(redis_key(name), 'date')}}
+    @apps_status = APPS.map {|name| {
+      :name => name,
+      :date => $redis.hget(redis_key(name), 'date'),
+      :monitoring => $redis.hget(redis_key(name), 'monitoring'),
+    }}
     haml :index
   end
 
 
   post '/heroku-post' do
     app_name = params.get('app')
+
+    unless APPS.include?(app_name)
+      response.status = 404
+      return {:status => '404', :reason => 'Not found'}.to_json
+    end
+
     email = params.get('user')
     url = params.get('url')
-
     logger.log(url)
+
+    if email == $redis.hget(redis_key(app_name), 'email') &&
+        $redis.hget(redis_key(app_name), 'monitoring')
+      
+      response.status = '412'
+      return {:status => '412', :reason => "Already monitoring one deployment"}.to_json
+    end
 
     init_tests(app_name, email)
 
@@ -235,6 +145,11 @@ class Protected < Sinatra::Base
   get '/manualtest' do
     app_name = "patata"
     email = "someone@example.com"
+
+    if $redis.hexists(redis_key(app_name), 'monitoring')
+      response.status = 412
+      return {:status => '412', :reason => "Already monitoring one deployment for this app"}.to_json
+    end
 
     init_tests(app_name, email)
 

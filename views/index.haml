@@ -2,6 +2,6 @@
 %ul
   - @apps_status.each do |app|
     - if app[:date]
-      %li #{app[:name]} - #{app[:date]}
+      %li #{app[:name]} - #{app[:date]} - #{app[:monitoring] || 'NO'}
 
 

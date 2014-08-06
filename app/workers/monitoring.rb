@@ -1,8 +1,9 @@
 require 'httparty'
 require 'redis'
 require 'time'
-require './emails'
+require './lib/emails'
 require './lib/utils'
+require './lib/heroku'
 require 'active_support/time'
 require 'sidekiq'
 
@@ -23,12 +24,11 @@ def check_app_status(app)
 end
 
 
-
 class MonitoringJob
   include Sidekiq::Worker
   def perform(app, email)
-    logger.info 'Running checker'
     rkey = redis_key(app)
+    logger.info "Running checker #{rkey}"
 
     now = Time.now.getutc
     $redis.hset(rkey, "last_update", now)
@@ -48,7 +48,8 @@ class MonitoringJob
 
     if r_errors.to_i >= LIMIT_ERRORS
       logger.warn "Hey, there is something wrong with the app"
-      # TODO Notification and rollback if enabled
+      Heroku.notification_or_rollback(app, email)
+      site_error(app, email)
       return
     end
 
