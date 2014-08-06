@@ -1,7 +1,27 @@
-%div Latest active deployments.
-%ul
-  - @apps_status.each do |app|
-    - if app[:date]
-      %li #{app[:name]} - #{app[:date]} - #{app[:monitoring] || 'NO'}
+%h2 Info available
+%table.table
+  %thead
+    %tr
+      %th name
+      %th last deploy
+      %th monitoring
+      %th url
+
+  %tbody
+    - @apps_status.each do |app|
+      %tr
+        %td #{app[:name]}
+        %td #{app[:date] || '-'} 
+        %td #{app[:monitoring] || 'NO'}
+        %td #{app[:url]}
 
 
+%form{:role => 'form', :action => "", :method => "post"}
+  .form-group
+    %label{:for => "app"} App Name:
+    %input{:tupe =>"text", :name => "app", :class => "form-control"}
+  .form-group
+    %label{:for => "url"} Check URL:
+    %input{:tupe =>"text", :name => "url", :class => "form-control"}
+  
+  %button{:type => "submit", :value => "Add", :class => "btn btn-default"}Add

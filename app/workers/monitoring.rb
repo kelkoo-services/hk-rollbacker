@@ -15,7 +15,7 @@ NOT_VALID_CODES = [
 
 
 def check_app_status(app)
-    response = HTTParty.get(TEST_URIS[app])
+    response = HTTParty.get($redis.hget(redis_key('apps'), app))
     if NOT_VALID_CODES.include? response.code
       return false
     else

@@ -78,7 +78,9 @@ class Protected < Sinatra::Base
 
   post '/:app/newrelease/' do
     app_name = params[:app]
-    unless APPS.include?(app_name)
+
+    
+    unless $redis.hexists(redis_key('apps'), app_name)
       response.status = 404
       return {:status => '404', :reason => 'Not found'}.to_json
     end
@@ -108,19 +110,27 @@ class Protected < Sinatra::Base
   end
 
   get '/' do
-    @apps_status = APPS.map {|name| {
+    @apps_status = $redis.hkeys(redis_key('apps')).map {|name| {
       :name => name,
-      :date => $redis.hget(redis_key(name), 'date'),
+      :url => $redis.hget('apps', name),
       :monitoring => $redis.hget(redis_key(name), 'monitoring'),
+      :date => $redis.hget(redis_key(name), 'date'),
     }}
     haml :index
+  end
+
+  post '/' do
+    app_name = params['app']
+    url = params['url']
+    $redis.hset(redis_key('apps'), app_name, url)
+    redirect "/", 302
   end
 
 
   post '/heroku-post' do
     app_name = params.get('app')
 
-    unless APPS.include?(app_name)
+    unless $redis.hexists(redis_key('apps'), app_name)
       response.status = 404
       return {:status => '404', :reason => 'Not found'}.to_json
     end
@@ -132,7 +142,7 @@ class Protected < Sinatra::Base
     if email == $redis.hget(redis_key(app_name), 'email') &&
         $redis.hget(redis_key(app_name), 'monitoring')
       
-      response.status = '412'
+      response.status = 412
       return {:status => '412', :reason => "Already monitoring one deployment"}.to_json
     end
 
