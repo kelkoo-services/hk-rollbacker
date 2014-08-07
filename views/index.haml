@@ -6,6 +6,7 @@
       %th last deploy
       %th monitoring
       %th url
+      %th 
 
   %tbody
     - @apps_status.each do |app|
@@ -14,14 +15,21 @@
         %td #{app[:date] || '-'} 
         %td #{app[:monitoring] || 'NO'}
         %td #{app[:url]}
+        %td 
+          %form{:role => 'form-inline', :action => "", :method => "post"}
+            %button{:type => "submit", :name => "action",
+                    :value => "remove", :class => "btn btn-default"}X
+            %input{:type =>"hidden", :name => "app", :value=> "#{app[:name]}"}
+
+
 
 
 %form{:role => 'form', :action => "", :method => "post"}
   .form-group
     %label{:for => "app"} App Name:
-    %input{:tupe =>"text", :name => "app", :class => "form-control"}
+    %input{:type =>"text", :name => "app", :class => "form-control"}
   .form-group
     %label{:for => "url"} Check URL:
-    %input{:tupe =>"text", :name => "url", :class => "form-control"}
+    %input{:type =>"text", :name => "url", :class => "form-control"}
   
   %button{:type => "submit", :value => "Add", :class => "btn btn-default"}Add

@@ -8,6 +8,7 @@ require 'redis'
 require 'time'
 require './app/workers/monitoring'
 require './lib/utils'
+require './lib/heroku'
 require './config/env'
 require 'active_support/time'
 
@@ -35,6 +36,7 @@ def init_tests(app, email)
       :date => now,
       :ok => 0,
       :errors => 0,
+      :retries => 0,
       :last_request => nil,
     }
 
@@ -66,7 +68,6 @@ class Protected < Sinatra::Base
     auth_basic? || auth_apikey? 
   end
 
-
   before do
     $redis.set("started", Time.now.getutc)
     if not authorized?
@@ -75,21 +76,25 @@ class Protected < Sinatra::Base
     end
   end
 
-
   post '/:app/newrelease/' do
     app_name = params[:app]
 
-    
     unless $redis.hexists(redis_key('apps'), app_name)
       response.status = 404
-      return {:status => '404', :reason => 'Not found'}.to_json
+      return {
+        :status => '404',
+        :reason => 'Not found'
+      }.to_json
     end
 
     payload = JSON.parse request.body.read
 
     unless payload.has_key?('email')
       response.status = 400
-      return {:status => '400', :reason => 'email is required'}.to_json
+      return {
+        :status => '400',
+        :reason => 'email is required'
+      }.to_json
     end
 
     now = Time.now.getutc
@@ -112,7 +117,7 @@ class Protected < Sinatra::Base
   get '/' do
     @apps_status = $redis.hkeys(redis_key('apps')).map {|name| {
       :name => name,
-      :url => $redis.hget('apps', name),
+      :url => $redis.hget(redis_key('apps'), name),
       :monitoring => $redis.hget(redis_key(name), 'monitoring'),
       :date => $redis.hget(redis_key(name), 'date'),
     }}
@@ -122,47 +127,70 @@ class Protected < Sinatra::Base
   post '/' do
     app_name = params['app']
     url = params['url']
-    $redis.hset(redis_key('apps'), app_name, url)
+    if params['action'] == 'remove'
+      app_name = params['app']
+      $redis.hdel(redis_key('apps'), app_name)
+    else
+      heroku = Heroku.new(app_name)
+      if not heroku.reachable?
+        @message = "The provided APP #{app_name} is not reachable"
+        return haml :message
+      end
+
+      if not check_url_status(url)
+        @message = "The url provided is not reachable #{url}"
+        return haml :message
+      end
+      $redis.hset(redis_key('apps'), app_name, url)
+    end
+
     redirect "/", 302
   end
-
 
   post '/heroku-post' do
     app_name = params.get('app')
 
     unless $redis.hexists(redis_key('apps'), app_name)
       response.status = 404
-      return {:status => '404', :reason => 'Not found'}.to_json
+      return {
+        :status => '404',
+        :reason => 'Not found'
+      }.to_json
     end
 
     email = params.get('user')
     url = params.get('url')
     logger.log(url)
 
-    if email == $redis.hget(redis_key(app_name), 'email') &&
-        $redis.hget(redis_key(app_name), 'monitoring')
-      
+    if $redis.hexists(redis_key(app_name), 'monitoring')
       response.status = 412
-      return {:status => '412', :reason => "Already monitoring one deployment"}.to_json
+      return {
+        :status => '412',
+        :reason => "Already monitoring one deployment"
+      }.to_json
+    else
+      init_tests(app_name, email)
+      response.status = 201
+      {:status => 'ok'}.to_json
     end
-
-    init_tests(app_name, email)
-
-    response.status = 201
-    {:status => 'ok'}.to_json
   end
 
   get '/manualtest' do
     app_name = "patata"
     email = "someone@example.com"
 
+    logger.info DEPLOY_TTL
     if $redis.hexists(redis_key(app_name), 'monitoring')
       response.status = 412
-      return {:status => '412', :reason => "Already monitoring one deployment for this app"}.to_json
+      @message = "Already monitoring one deployment for this app"
+    elsif $redis.exists(redis_key(app_name))
+      init_tests(app_name, email)
+      @message = "Process enqueue"
+    else
+      @message = "Deployment not registered in the latest #{DEPLOY_TTL} seconds"
+      response.status = 412
     end
 
-    init_tests(app_name, email)
-
-    haml :ok
+    haml :message
   end
 end
