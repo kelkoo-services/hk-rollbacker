@@ -9,6 +9,7 @@ require 'time'
 require './app/workers/monitoring'
 require './lib/utils'
 require './lib/heroku'
+require './lib/logentries'
 require './config/env'
 require 'active_support/time'
 
@@ -64,6 +65,10 @@ class Protected < Sinatra::Base
     password_hash == API_KEY
   end
 
+  def auth_logentries?
+    logentries_login(ENV['LOGENTRIES_USER'], ENV['LOGENTRIES_PASSWORD'], request)
+  end
+
   def authorized?
     auth_basic? || auth_apikey? 
   end
@@ -109,6 +114,34 @@ class Protected < Sinatra::Base
       $redis.mapped_hmset(redis_key(app_name), data)
       $redis.expire(redis_key(app_name), DEPLOY_TTL)
     end
+
+    response.status = 201
+    return {:status => '201', :status => "OK"}.to_json
+  end
+
+  post '/:app/logentries/' do
+    app_name = params[:app]
+
+    unless $redis.hexists(redis_key('apps'), app_name)
+      response.status = 404
+      return {
+        :status => '404',
+        :reason => 'Not found'
+      }.to_json
+    end
+
+    payload = JSON.parse request.body.read
+    logentries_message = ENV['LOGENTRIES_ALERT_MESSAGE'] 
+    return false unless payload['alert']['name'] == logentries_message
+
+    email = $redis.hget(redis_key(app_name), 'email')
+
+    heroku = Heroku.new(app_name)
+    heroku.notification_or_rollback(email, {
+      :app => app_name,
+      :email => email,
+      :message => logentries_message
+    })
 
     response.status = 201
     return {:status => '201', :status => "OK"}.to_json

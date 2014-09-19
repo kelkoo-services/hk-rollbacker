@@ -14,8 +14,6 @@ NOT_VALID_CODES = [
 ]
 
 
-
-
 class MonitoringJob
   include Sidekiq::Worker
   def perform(app, email)
