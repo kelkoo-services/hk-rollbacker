@@ -94,9 +94,6 @@ class Protected < Sinatra::Base
 
     payload = JSON.parse request.body.read
 
-    puts request.body.read
-    puts headers
-
     unless payload.has_key?('email')
       response.status = 400
       return {
@@ -134,6 +131,10 @@ class Protected < Sinatra::Base
     end
 
     payload = JSON.parse request.body.read
+
+    log.info(payload)
+    log.info(headers)
+
     logentries_message = LOGENTRIES_ALERT_MESSAGE
     return false unless payload['alert']['name'] == logentries_message
 
