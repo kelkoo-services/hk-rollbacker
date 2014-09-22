@@ -70,7 +70,7 @@ class Protected < Sinatra::Base
   end
 
   def authorized?
-    auth_basic? || auth_apikey? 
+    auth_basic? || auth_apikey? || auth_logentries?
   end
 
   before do
@@ -93,6 +93,9 @@ class Protected < Sinatra::Base
     end
 
     payload = JSON.parse request.body.read
+
+    puts request.body.read
+    puts headers
 
     unless payload.has_key?('email')
       response.status = 400
