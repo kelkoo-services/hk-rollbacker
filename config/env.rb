@@ -1,5 +1,7 @@
 
-HTTP_USER = ENV['HTTP_USER']
+HTTP_USER = ENV['HTTP_USER'] 
+raise 'HTTP_USER bad format (user:password hashed with sha256) ' unless (HTTP_USER != nil && HTTP_USER.include?(':'))
+
 API_KEY = ENV['API_KEY']
 NEWRELIC_API_ID= ENV['NEWRELIC_API_ID']
 HEROKU_API_TOKEN = ENV['HEROKU_API_TOKEN']
