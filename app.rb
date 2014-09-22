@@ -66,7 +66,7 @@ class Protected < Sinatra::Base
   end
 
   def auth_logentries?
-    logentries_login(ENV['LOGENTRIES_USER'], ENV['LOGENTRIES_PASSWORD'], request)
+    logentries_login(LOGENTRIES_USER, LOGENTRIES_PASSWORD, request)
   end
 
   def authorized?
@@ -131,7 +131,7 @@ class Protected < Sinatra::Base
     end
 
     payload = JSON.parse request.body.read
-    logentries_message = ENV['LOGENTRIES_ALERT_MESSAGE'] 
+    logentries_message = LOGENTRIES_ALERT_MESSAGE
     return false unless payload['alert']['name'] == logentries_message
 
     email = $redis.hget(redis_key(app_name), 'email')
