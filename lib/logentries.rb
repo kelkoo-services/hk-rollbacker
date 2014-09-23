@@ -13,11 +13,15 @@ def logentries_login(le_user, le_password, request)
 
   @auth ||= Rack::Auth::Basic::Request.new(request.env)
 
-  return false unless @auth.provided? && @auth.credentials 
+
+  logger.info "No auth or credentials provided" unless (@auth.provided? && @auth.credentials)
+  return false unless (@auth.provided? && @auth.credentials)
  
   request_signature = @auth.credentials[1] 
   request_user = @auth.credentials[0]
+ 
 
+  logger.info "request_user != le_user" if request_user != le_user
   return false unless request_user == le_user
 
   canonical  = [
@@ -31,6 +35,9 @@ def logentries_login(le_user, le_password, request)
 
   dg = OpenSSL::Digest::Digest.new('sha1')
   signature = Base64.encode64(OpenSSL::HMAC.digest(dg, le_password, canonical)).strip
+
+  logger.info "signature #{signature}"
+  logger.info "request_signature signature #{request_signature}"
 
   (signature == request_signature)
 
