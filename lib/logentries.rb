@@ -11,9 +11,14 @@ def logentries_login(le_user, le_password, request)
 
   @auth ||= Rack::Auth::Basic::Request.new(request.env)
 
+  logger.info "---header---"
+  logger.info "#{headers}"
+  logger.info "---body---"
+  logger.info "#{request.body.read}"
+  logger.info "------"
 
-  logger.info "No auth or credentials provided" if !headers.include?('Authorization')
-  return false if !headers.include?('Authorization')
+  logger.info "No auth or credentials provided" unless headers.include?('Authorization')
+  return false unless headers.include?('Authorization')
   credentials = headers['Authorization'].split(':')
   request_user = credentials[0].split(' ').last
   request_signature = credentials[1]
