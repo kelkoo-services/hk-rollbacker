@@ -29,7 +29,7 @@ def logentries_login(le_user, le_password, request)
     headers['Content-Type'],
     payload_md5,
     headers['Date'],
-    path,
+    request.path,
     headers["X-Le-Nonce"],
   ].join("n")
 
