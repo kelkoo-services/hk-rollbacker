@@ -7,15 +7,13 @@ require 'time'
 def logentries_login(le_user, le_password, request)
   # https://logentries.com/doc/webhookalert/
   #
-  
-  
   payload_md5 = Base64.encode64(Digest::MD5.digest(request.body.read)).strip
 
   @auth ||= Rack::Auth::Basic::Request.new(request.env)
 
 
-  logger.info "No auth or credentials provided" if !headers.contains?('Authorization')
-  return false if !headers.contains?('Authorization')
+  logger.info "No auth or credentials provided" if !headers.include?('Authorization')
+  return false if !headers.include?('Authorization')
   credentials = headers['Authorization'].split(':')
   request_user = credentials[0].split(' ').last
   request_signature = credentials[1]
