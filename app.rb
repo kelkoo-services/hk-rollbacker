@@ -47,7 +47,16 @@ def init_tests(app, email)
 end
 
 
+
+
 class Protected < Sinatra::Base
+  enable :logging
+  
+  before do
+    logger.level = Logger::DEBUG
+  end
+
+
   def auth_basic?
     @auth ||= Rack::Auth::Basic::Request.new(request.env)
     stored_user, stored_password = HTTP_USER.split(':')
