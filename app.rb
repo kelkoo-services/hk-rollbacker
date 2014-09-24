@@ -141,11 +141,15 @@ class Protected < Sinatra::Base
 
     payload = JSON.parse request.body.read
 
-    log.info(payload)
-    log.info(headers)
+    logger.info(payload)
+    logger.info(headers)
 
     logentries_message = LOGENTRIES_ALERT_MESSAGE
-    return false unless payload['alert']['name'] == logentries_message
+    response.status = 400
+    bad_request = {:status => '400', :status => "Bad Request, review the request body"}
+    return bad_request.to_json unless (payload.include?('alert')  &&
+                                       payload['alert'].include?('name') &&
+                                       payload['alert']['name'] == logentries_message)
 
     email = $redis.hget(redis_key(app_name), 'email')
 
