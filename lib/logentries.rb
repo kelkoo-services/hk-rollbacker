@@ -18,10 +18,10 @@ def logentries_login(le_user, le_password, request)
   logger.info "#{request.body.read}"
   logger.info "------"
 
-  logger.info "No auth or credentials provided" unless headers.include?('Authorization')
-  return false unless headers.include?('Authorization')
+  logger.info "No auth or credentials provided" unless headers.include?('HTTP_AUTHORIZATION')
+  return false unless headers.include?('HTTP_AUTHORIZATION')
 
-  credentials = headers['Authorization'].split(':')
+  credentials = headers['HTTP_AUTHORIZATION'].split(':')
   request_user = credentials[0].split(' ').last
   request_signature = credentials[1]
 
@@ -30,11 +30,11 @@ def logentries_login(le_user, le_password, request)
 
   canonical  = [
     "POST",
-    headers['Content-Type'],
+    headers['HTTP_CONTENT_TYPE'],
     payload_md5,
-    headers['Date'],
+    headers['HTTP_DATE'],
     request.path,
-    headers["X-Le-Nonce"],
+    headers["HTTP_X_LE_NOUNCE"],
   ].join("n")
 
   dg = OpenSSL::Digest::Digest.new('sha1')
