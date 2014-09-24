@@ -3,6 +3,7 @@ require 'base64'
 require 'digest/md5'
 require 'time'
 require 'uri'
+request 'json'
 
 def get_request_le_signature(path, body, headers, le_password)
   payload_md5 = Base64.encode64(Digest::MD5.digest(body)).strip
@@ -28,7 +29,7 @@ def logentries_login(le_user, le_password, request)
 
   headers = request.env
 
-  body_decoded = URI.decode_www_form(body)
+  body_decoded = URI::Escape.decode(body)
 
   logger.info "---header---"
   logger.info "#{headers}"
