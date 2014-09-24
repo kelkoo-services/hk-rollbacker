@@ -3,7 +3,7 @@ require 'base64'
 require 'digest/md5'
 require 'time'
 require 'uri'
-request 'json'
+require 'json'
 
 def get_request_le_signature(path, body, headers, le_password)
   payload_md5 = Base64.encode64(Digest::MD5.digest(body)).strip
