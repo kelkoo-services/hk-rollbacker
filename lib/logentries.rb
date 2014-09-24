@@ -8,7 +8,7 @@ def logentries_login(le_user, le_password, request)
   # https://logentries.com/doc/webhookalert/
   #
   payload_md5 = Base64.encode64(Digest::MD5.digest(request.body.read)).strip
-  request.body.seek 0
+  request.body.rewind
 
   @auth ||= Rack::Auth::Basic::Request.new(request.env)
 
