@@ -28,7 +28,7 @@ def logentries_login(le_user, le_password, request)
 
   headers = request.env
 
-  body_decoded = decode_www_form(body)
+  body_decoded = URI.decode_www_form(body)
 
   logger.info "---header---"
   logger.info "#{headers}"
