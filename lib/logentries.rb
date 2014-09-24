@@ -29,7 +29,7 @@ def logentries_login(le_user, le_password, request)
 
   headers = request.env
 
-  body_decoded = URI::Escape.decode(body)
+  body_decoded = URI.decode(body)
 
   logger.info "---header---"
   logger.info "#{headers}"
@@ -55,5 +55,4 @@ def logentries_login(le_user, le_password, request)
   logger.info "request_signature #{request_signature}"
 
   (signature == request_signature)
-
 end
