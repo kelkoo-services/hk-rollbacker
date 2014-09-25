@@ -13,7 +13,7 @@ def get_request_le_signature(path, body, headers, le_password)
     payload_md5,
     headers['HTTP_DATE'],
     path,
-    headers["HTTP_X_LE_NOUNCE"],
+    headers["HTTP_X_LE_NONCE"],
   ].join("\n")
 
   dg = OpenSSL::Digest::Digest.new('sha1')
