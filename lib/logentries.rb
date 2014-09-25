@@ -14,14 +14,14 @@ def get_request_le_signature(path, body, headers, le_password)
     headers['HTTP_DATE'],
     path,
     headers["HTTP_X_LE_NOUNCE"],
-  ].join("n")
+  ].join("\n")
 
   dg = OpenSSL::Digest::Digest.new('sha1')
   Base64.encode64(OpenSSL::HMAC.digest(dg, le_password, canonical)).strip
 end
 
 
-def logentries_login(le_user, le_password, request)
+def logentries_login(le_user, le_password, request, payload)
   # https://logentries.com/doc/webhookalert/
   #
   body = request.body.read
@@ -49,9 +49,11 @@ def logentries_login(le_user, le_password, request)
 
   signature = get_request_le_signature(request.path, body, request.env, le_password)
   signature_decoded = get_request_le_signature(request.path, body_decoded, request.env, le_password)
+  signature_payload = get_request_le_signature(request.path, payload, request.env, le_password)
 
   logger.info "signature #{signature}"
   logger.info "signature_decoded #{signature_decoded}"
+  logger.info "request_payload #{signature_payload}"
   logger.info "request_signature #{request_signature}"
 
   (signature == request_signature)

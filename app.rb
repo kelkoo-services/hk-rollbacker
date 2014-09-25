@@ -75,7 +75,8 @@ class Protected < Sinatra::Base
   end
 
   def auth_logentries?
-    logentries_login(LOGENTRIES_USER, LOGENTRIES_PASSWORD, request)
+    return false unless params.include?('payload')
+    logentries_login(LOGENTRIES_USER, LOGENTRIES_PASSWORD, request, params['payload'])
   end
 
   def authorized?
