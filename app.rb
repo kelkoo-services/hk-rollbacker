@@ -142,9 +142,6 @@ class Protected < Sinatra::Base
 
     payload = JSON.parse request.body.read
 
-    logger.info(payload)
-    logger.info(headers)
-
     logentries_message = LOGENTRIES_ALERT_MESSAGE
     response.status = 400
     bad_request = {:status => '400', :status => "Bad Request, review the request body"}
