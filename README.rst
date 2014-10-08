@@ -1,6 +1,6 @@
-=======================================
-Heroku rollback with New Relic web hook
-=======================================
+=============================
+Heroku rollback with webhooks
+=============================
 
 Heroku suggest to do rollback manually, but if want to be unsafe you can use my
 rollbacker app.
@@ -8,6 +8,9 @@ rollbacker app.
 You can find the New Relic Web Hooks doc in this link:
 
 https://docs.newrelic.com/docs/alerts/webhook-examples
+
+This app can handle logentries too, although the HMAC auth is not really
+implemented, but you can use an api key in query params.
 
 
 Deployment
