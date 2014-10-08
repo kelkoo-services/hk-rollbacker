@@ -1,6 +1,6 @@
-=======================================
-Heroku rollback with New Relic web hook
-=======================================
+=============================
+Heroku rollback with webhooks
+=============================
 
 Heroku suggest to do rollback manually, but if want to be unsafe you can use my
 rollbacker app.
@@ -8,6 +8,9 @@ rollbacker app.
 You can find the New Relic Web Hooks doc in this link:
 
 https://docs.newrelic.com/docs/alerts/webhook-examples
+
+This app can handle logentries too, although the HMAC auth is not really
+implemented, but you can use an api key in query params.
 
 
 Deployment
@@ -146,18 +149,32 @@ This accept json POST with this structure:
 
 .. code-block:: javascript
 
-   {
-    email:'the-user-email'
-   }
+   {"email":"the-user-email"}
 
 
 Rollback
 --------
 
 This action call to heroku to do a rollback if the **newrelease** hook was
-called before during the set TTL.
+called betweeyn new release created by a developer and the set TTL.
 
 The resource path is /APP_IN_APPS/rollback/
+
+You should include the api key in the new relic webhook, so it should look
+like:
+
+http://somename.herokuapp.com/appname/rollback/?key=yourapikey
+
+This accept json POST with the New Relic json schema.
+
+
+Rollback by logentries webhook
+------------------------------
+
+This action call to heroku to do a rollback if the **newrelease** hook was
+called betweeyn new release created by a developer and the set TTL.
+
+The resource path is /APP_IN_APPS/logentries/
 
 You should include the api key in the new relic webhook, so it should look
 like:

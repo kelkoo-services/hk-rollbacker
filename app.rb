@@ -6,7 +6,13 @@ require 'json'
 require 'digest'
 require 'redis'
 require 'time'
-require './emails'
+require './app/workers/monitoring'
+require './lib/utils'
+require './lib/heroku'
+require './lib/logentries'
+require './config/env'
+require 'active_support/time'
+
 
 # Expected environment
 #  APPS = "app1;app2;app3"  # heroku app names
@@ -17,59 +23,40 @@ require './emails'
 #  DEPLOY_TTL = 300  # seconds
 
 
-APPS = ENV['APPS'].split(';')
-HTTP_USER = ENV['HTTP_USER']
-API_KEY = ENV['API_KEY']
-NEWRELIC_API_ID= ENV['NEWRELIC_API_ID']
-HEROKU_API_TOKEN = ENV['HEROKU_API_TOKEN']
-REDIS_URI = ENV['REDIS_URI'] || ENV['REDISTOGO_URL'] || ENV['OPENREDIS_URL'] || 'redis://localhost:6379/'
-DEPLOY_TTL = ENV['DEPLOY_TTL'] || 300
-EMAIL_ENABLED = ENV['EMAIL_ENABLED'] == 'true'
-ROLLBACK_ENABLED = ENV['ROLLBACK_ENABLED'] == 'true'
+
+$redis = Redis.new(:url => REDIS_URI)
 
 
-def newrelic_payload_validation(payload, app)
-  return false if payload.nil?
-  return false unless payload.values_at("application_name", "severity") == [app, "downtime"]
-  return false unless (
-    payload.has_key?("short_description") &&
-    /^(New alert|Escalated severity).*$/.match(payload["short_description"])
-  )
-  return true
+def init_tests(app, email)
+    now = Time.now.getutc
+    data = {
+      :app => app,
+      :email => email,
+      :timestamp => now.getutc.to_i,
+      :monitoring => true,
+      :date => now,
+      :ok => 0,
+      :errors => 0,
+      :retries => 0,
+      :last_request => nil,
+    }
+
+    $redis.mapped_hmset(redis_key(app), data)
+
+    MonitoringJob.perform_in(APPS_WAKEUP.to_i.seconds, app, email)
 end
 
 
-def redis_key(name)
-  name + "_hkrollbacker"
-end
-
-
-class Heroku
-  include HTTParty
-  base_uri 'https://api.heroku.com'
-  format :json
-  headers 'Accept' => 'application/vnd.heroku+json; version=3'
-  headers 'Authorization' => HEROKU_API_TOKEN
-end
-  
-
-def heroku_rollback (app_name)
-
-  releases = Heroku.get "/apps/#{app_name}/releases"
-
-  previous_release = releases[-2]
-  payload = {:release => previous_release["id"]}
-
-  new_release = Heroku.post("/apps/#{app_name}/releases", :body => payload)
-  
-  {
-    :previus_release => previous_release,
-    :new_release => new_release,
-  }
-end
 
 
 class Protected < Sinatra::Base
+  enable :logging
+  
+  before do
+    logger.level = Logger::DEBUG
+  end
+
+
   def auth_basic?
     @auth ||= Rack::Auth::Basic::Request.new(request.env)
     stored_user, stored_password = HTTP_USER.split(':')
@@ -87,42 +74,42 @@ class Protected < Sinatra::Base
     password_hash == API_KEY
   end
 
-  def is_newrelic?
-    puts request.env["HTTP_X_NEWRELIC_ID"]
-    puts request.env["HTTP_X_NEWRELIC_TRANSACTION"]
-    (request.env.has_key?("HTTP_X_NEWRELIC_ID") && 
-     request.env.has_key?("HTTP_X_NEWRELIC_TRANSACTION") &&
-     request.env["HTTP_X_NEWRELIC_ID"] == NEWRELIC_API_ID)
+  def auth_logentries?
+    return false unless params.include?('payload')
+    logentries_login(LOGENTRIES_USER, LOGENTRIES_PASSWORD, request, params['payload'])
   end
 
   def authorized?
-    auth_basic? || auth_apikey? || is_newrelic?
+    auth_basic? || auth_apikey? || auth_logentries?
   end
 
-
   before do
+    $redis.set("started", Time.now.getutc)
     if not authorized?
       headers['WWW-Authenticate'] = 'Basic realm="Restricted Area"'
       halt 401, "Not authorized\n"
     end
   end
 
-
-  redis = Redis.new(:url => REDIS_URI)
-  redis.set("started", Time.now.getutc)
-  
   post '/:app/newrelease/' do
     app_name = params[:app]
-    unless APPS.include?(app_name)
+
+    unless $redis.hexists(redis_key('apps'), app_name)
       response.status = 404
-      return {:status => '404', :reason => 'Not found'}.to_json
+      return {
+        :status => '404',
+        :reason => 'Not found'
+      }.to_json
     end
 
     payload = JSON.parse request.body.read
 
     unless payload.has_key?('email')
       response.status = 400
-      return {:status => '400', :reason => 'email is required'}.to_json
+      return {
+        :status => '400',
+        :reason => 'email is required'
+      }.to_json
     end
 
     now = Time.now.getutc
@@ -133,86 +120,125 @@ class Protected < Sinatra::Base
       :date => now,
     }
 
-    redis.multi do
-      redis.mapped_hmset(redis_key(app_name), data)
-      redis.expire(redis_key(app_name), DEPLOY_TTL)
+    $redis.multi do
+      $redis.mapped_hmset(redis_key(app_name), data)
+      $redis.expire(redis_key(app_name), DEPLOY_TTL)
     end
 
     response.status = 201
-    {:status => 'ok'}.to_json
+    return {:status => '201', :status => "OK"}.to_json
   end
 
-  post '/:app/rollback/' do
+  post '/:app/logentries/' do
     app_name = params[:app]
-    if request.env['CONTENT_TYPE'] == 'application/x-www-form-urlencoded'
-        if params.has_key?("alert")
-          payload = JSON.parse params["alert"]
-        else
-          response.status = 204
-          return {
-            :status=> '204',
-            :reason => 'Only the alert message is implemented'
-          }.to_json
-        end
-    else
-      payload = JSON.parse request.body.read
-    end
 
-    unless APPS.include?(app_name)
+    unless $redis.hexists(redis_key('apps'), app_name)
       response.status = 404
-      return {:status => '404', :reason => 'Not found'}.to_json
-    end
-
-    unless redis.exists(redis_key(app_name))
-      response.status = 202
-      return {:status => '202', :reason => 'Last deploy is expired'}.to_json
-    end
-
-    unless newrelic_payload_validation(payload, app_name)
-      response.status = 400
       return {
-        :status=> '400',
-        :reason => 'Invalid json content, required severity and account_name and message ending with down'
+        :status => '404',
+        :reason => 'Not found'
       }.to_json
     end
 
-    email = redis.hget(redis_key(app_name), 'email')
-    redis.del(redis_key(app_name))
+    payload = JSON.parse request.body.read
 
-    unless ROLLBACK_ENABLED
-      send_email_rollback_request(app_name, email, payload)
-      response.status = 201
-      return {:status => '201', :reason => 'Rollback disabled, only this email is sent'}.to_json
-    end
+    logentries_message = LOGENTRIES_ALERT_MESSAGE
+    response.status = 400
+    bad_request = {:status => '400', :status => "Bad Request, review the request body"}
+    return bad_request.to_json unless (payload.include?('alert')  &&
+                                       payload['alert'].include?('name') &&
+                                       payload['alert']['name'] == logentries_message)
 
-    begin
-        result = heroku_rollback app_name if ROLLBACK_ENABLED
-    rescue
-      send_email_rollback_failed(app_name, email, payload) if EMAIL_ENABLED
-      response.status = 500
-      return {:status => '500', :reason => 'Rollback rejected by Heroku'}
-    else
-      if result[:new_release].code == 201
-        response.status = 201
+    email = $redis.hget(redis_key(app_name), 'email')
 
-        if EMAIL_ENABLED
-          send_email_rollback(app_name, email, payload)
-        end
-          
-        {
-          :status => 'ok',
-          :new_release => result[:new_release]
-        }.to_json
-      else
-        send_email_rollback_failed(app_name, email, result) if EMAIL_ENABLED
-        response.status = result[:new_release].code
-        result[:new_release]
-      end
-    end
+    heroku = Heroku.new(app_name)
+    heroku.notification_or_rollback(email, {
+      :app => app_name,
+      :email => email,
+      :message => logentries_message
+    })
+
+    response.status = 201
+    return {:status => '201', :status => "OK"}.to_json
   end
 
   get '/' do
-    @apps_status = APPS.map {|name| {:name => name, :date => redis.hget(redis_key(name), 'date')}}
+    @apps_status = $redis.hkeys(redis_key('apps')).map {|name| {
+      :name => name,
+      :url => $redis.hget(redis_key('apps'), name),
+      :monitoring => $redis.hget(redis_key(name), 'monitoring'),
+      :date => $redis.hget(redis_key(name), 'date'),
+    }}
     haml :index
+  end
+
+  post '/' do
+    app_name = params['app']
+    url = params['url']
+    if params['action'] == 'remove'
+      app_name = params['app']
+      $redis.hdel(redis_key('apps'), app_name)
+    else
+      heroku = Heroku.new(app_name)
+      if not heroku.reachable?
+        @message = "The provided APP #{app_name} is not reachable"
+        return haml :message
+      end
+
+      if not check_url_status(url)
+        @message = "The url provided is not reachable #{url}"
+        return haml :message
+      end
+      $redis.hset(redis_key('apps'), app_name, url)
+    end
+
+    redirect "/", 302
+  end
+
+  post '/heroku-post' do
+    app_name = params.get('app')
+
+    unless $redis.hexists(redis_key('apps'), app_name)
+      response.status = 404
+      return {
+        :status => '404',
+        :reason => 'Not found'
+      }.to_json
+    end
+
+    email = params.get('user')
+    url = params.get('url')
+    logger.log(url)
+
+    if $redis.hexists(redis_key(app_name), 'monitoring')
+      response.status = 412
+      return {
+        :status => '412',
+        :reason => "Already monitoring one deployment"
+      }.to_json
+    else
+      init_tests(app_name, email)
+      response.status = 201
+      {:status => 'ok'}.to_json
+    end
+  end
+
+  get '/manualtest' do
+    app_name = "patata"
+    email = "someone@example.com"
+
+    logger.info DEPLOY_TTL
+    if $redis.hexists(redis_key(app_name), 'monitoring')
+      response.status = 412
+      @message = "Already monitoring one deployment for this app"
+    elsif $redis.exists(redis_key(app_name))
+      init_tests(app_name, email)
+      @message = "Process enqueue"
+    else
+      @message = "Deployment not registered in the latest #{DEPLOY_TTL} seconds"
+      response.status = 412
+    end
+
+    haml :message
   end
 end
