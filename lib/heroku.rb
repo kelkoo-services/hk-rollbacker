@@ -34,7 +34,8 @@ class Heroku
 
   def reachable?
     response = HerokuAPI.get "/apps/#{@app_name}/releases"
-    response.code == 200
+    # Heroku returns 206 if the releases list is too large.
+    [200, 206].include? response.code
   end
     
 
