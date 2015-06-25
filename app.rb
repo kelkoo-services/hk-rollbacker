@@ -51,7 +51,7 @@ end
 
 class Protected < Sinatra::Base
   enable :logging
-  
+
   before do
     logger.level = Logger::DEBUG
   end
@@ -60,11 +60,11 @@ class Protected < Sinatra::Base
   def auth_basic?
     @auth ||= Rack::Auth::Basic::Request.new(request.env)
     stored_user, stored_password = HTTP_USER.split(':')
-    unless @auth.provided? && @auth.basic? && @auth.credentials 
+    unless @auth.provided? && @auth.basic? && @auth.credentials
       return false
     end
 
-    password_hash = Digest::SHA256.new() << @auth.credentials[1] 
+    password_hash = Digest::SHA256.new() << @auth.credentials[1]
     (@auth.credentials[0] == stored_user && password_hash = stored_password)
   end
 
@@ -140,11 +140,14 @@ class Protected < Sinatra::Base
       }.to_json
     end
 
-    payload = JSON.parse request.body.read
-
-    logentries_message = LOGENTRIES_ALERT_MESSAGE
     response.status = 400
     bad_request = {:status => '400', :status => "Bad Request, review the request body"}
+
+    return bad_request.to_json unless request.params.include?('payload')
+
+    payload = JSON.parse request.params['payload']
+
+    logentries_message = LOGENTRIES_ALERT_MESSAGE
     return bad_request.to_json unless (payload.include?('alert')  &&
                                        payload['alert'].include?('name') &&
                                        payload['alert']['name'] == logentries_message)
