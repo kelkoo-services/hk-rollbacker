@@ -12,6 +12,18 @@ https://docs.newrelic.com/docs/alerts/webhook-examples
 This app can handle logentries too, although the HMAC auth is not really
 implemented, but you can use an api key in query params.
 
+⚠️ Deprecated
+=============================
+
+- This repository is **no longer maintained**. App removed from Heroku 12 Sept 2024.
+
+Heroku Setup Requirements
+=========================
+
+If you want to deploy this app to Heroku, you need to add the following addons:
+
+- Redis (we were using Heroku Data for Redis - plan Mini is enough to run this app)
+- Mail provider (we were using Mailgun - plan Starter is enough to this app)
 
 Deployment
 ==========
